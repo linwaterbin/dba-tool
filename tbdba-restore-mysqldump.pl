@@ -76,7 +76,9 @@ sub print_usage () {
        5. Get all the table sql files in schema 'monitor'
           gunzip -c backup.sql.gz|tbdba-restore-mysqldump.pl -s monitor 
        6. Get all the table sql files in the dump file 
-          gunzip -c backup.sql.gz|tbdba-restore-mysqldump.pl --all-tables
+          tbdba-restore-mysqldump.pl --all-tables -f backup.sql
+          Get all the table sql files in *** DATABASE *** monitor 
+          tbdba-restore-mysqldump.pl -s monitor --all-tables -f backup.sql
        7. With -d, more infomation of processing will be output
           date && gunzip -c /backdir/backup.sql.gz|tbdba-restore-mysqldump.pl -d -a && date
        8. With -i, "use db" will be ignore,This can help you import table to a different database. 
