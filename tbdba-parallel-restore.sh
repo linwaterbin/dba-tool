@@ -8,12 +8,39 @@ socket="/var/lib/mysql/mysql.sock"
 user="root"
 pass=""
 host="localhost"
+print_usage()
+{
+  cat <<EOF
+ NAME:
+    tbdba-parallel-restore.sh
+
+ SYNTAX:
+    Sample:
+       1. Restore the split file in dir /opt/dump/
+          tbdba-parallel-restore.sh -d /opt/dump/ -S /var/lib/mysql/mysql.socket -uroot -p***
+
+ FUNCTION:
+    Restore the split file of mysqldump parallel.
+    Works with "tbdba-restore-mysqldump.pl"
+
+ PARAMETER:
+    -d the directory of split files           Default: ./
+    -u the user which connect to the database Default: root
+    -p the password                           Default:
+    -S the MySQL socket                       Default: /var/lib/mysql/mysql.sock
+    -P How many concurrency thread to restore Default: 24
+EOF
+}
+if [ $# -lt 1 ];then
+  print_usage
+  exit -1
+fi
 while getopts ":d:p:u:p:h:S:" opt; do
   case $opt in
     d)
       dir=$OPTARG   #get the value
       ;;
-    p)
+    P)
       parallel=$OPTARG   #get the value
       ;;
     u)
@@ -29,8 +56,7 @@ while getopts ":d:p:u:p:h:S:" opt; do
       socket=$OPTARG   #get the value
       ;;
     ?)
-      echo "How to use: $0 [-d the-dir-of-sql-file] [-p parallel_count]" >&2
-      echo "How to use: $0 -d /u01/bak/dump " >&2
+      print_usage
       exit 1
       ;;
     :)
