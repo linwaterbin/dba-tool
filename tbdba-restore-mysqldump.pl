@@ -45,10 +45,10 @@
 #       finished,maybe you can restore it).
 #
 #  To Do:
-#    1. Add parameter --target-dir to specify the target dir where dump file put
-#    2. With -d(--debug),script will output some infomation of processing
+#    [Done]1. Add parameter --target-dir to specify the target dir where dump file put
+#    [Done]2. With -d(--debug),script will output some infomation of processing
 #    3. Write the documentation with POD
-#    4. add a parameter -i|ignore-use to igone the 'use db', in case you wanna retore table to 
+#    [Done]4. add a parameter -i|ignore-use to igone the 'use db', in case you wanna retore table to 
 #       another database.
 #
 
@@ -79,6 +79,11 @@ sub print_usage () {
           gunzip -c backup.sql.gz|tbdba-restore-mysqldump.pl --all-tables
        7. With -d, more infomation of processing will be output
           date && gunzip -c /backdir/backup.sql.gz|tbdba-restore-mysqldump.pl -d -a && date
+       8. With -i, "use db" will be ignore,This can help you import table to a different database. 
+          tbdba-restore-mysqldump.pl -t process -s monitor -i
+       9. Specify the output directory with -r|--target-dir
+          tbdba-restore-mysqldump.pl --target-dir /opt/restore/ -t process -s monitor
+          Here is "/opt/restore/". NOT "/opt/restore".
 
  FUNCTION:
     Restore some tables from the while mysqldump backup
@@ -97,6 +102,8 @@ sub print_usage () {
         from which mysqldump backup file 
     -i|--ignore-use
         from which mysqldump backup file 
+    -r|--target-dir=s 
+        where put the split files
     -d|--debug
         debug mode; more output will be there
     -h|--help
@@ -114,6 +121,7 @@ GetOptions(\%opt,
     'f|sql-file=s',          # write result to database
     't|table=s',             # debug mode  
     'i|ignore-use+',         # ignore use `..` 
+    'r|target-dir=s',        # where put the split files 
     'a|all-tables+',       # debug mode  
     'd|debug+',              # debug mode  
     'h|help+',               # debug mode  
@@ -129,6 +137,10 @@ my @tabs ;
 my $inTableFlag = 0;
 my $inDBFlag = 0;
 my $outputdir = "./";
+my $outputdir = $opt{r} if $opt{r};
+if( ! -d $outputdir){
+  $outputdir = "./";
+}
 push(@tabs, $opt{t}) if $opt{t};
 @tabs = split(/,/,join(',',@tabs));
 my $tabcount = scalar(@tabs);
