@@ -86,7 +86,7 @@ $start = $opt{s} if $opt{s};
 $until = $opt{u} if $opt{u};
 $ignore = $opt{i} if $opt{i};
 
-if( !-e $slowlog){
+if( !-e $slowfile){
   print_usage(); 
   exit 1;
 }
@@ -109,6 +109,7 @@ my $query_time = "";
 my $inTime = 0;
 my $doneTime = "";
 my $startTime = "";
+my $row_examined = 0;
 my $linenum = 0;
 open (F, $slowfile) || die "Could not open $slowfile: $!\n";
 my @f = <F>;
@@ -140,12 +141,16 @@ while (<SLOWLOG>) {
     $doneTime = tounixtime($doneTime);
   }
  
-  ###   # User@Host: tc[tc] @  [172.59.8.8]
-  ###   # User@Host: tc[tc] @  [172.59.8.8]
+  ###   # User@Host: tc[tc] @  [172.23.67.115]
+  ###   # User@Host: tc[tc] @  [172.24.168.108]
   elsif($_ =~ m/^\# User\@Host\: (\w+)\[(\w*)\] \@\s+\[(\w|\.)+\]/){
     if($inTime eq 1){
       # Between the interval
-      print "QueryTime:".$query_time." Start:".todatetime(($doneTime-$query_time))." Done:".todatetime($doneTime)."\n";
+      my $show_qt = sprintf("%11.6f",$query_time);
+      my $show_st = sprintf("%21s",todatetime(($doneTime-$query_time)));
+      my $show_dt = sprintf("%21s",todatetime($doneTime));
+      my $show_re = sprintf("%8d",$row_examined);
+      print "QueryTime:$show_qt Start:$show_st Done:$show_dt Rows examin:$show_re\n";
       print $chunk;
     }
     $inTime = 0;
