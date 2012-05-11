@@ -150,7 +150,7 @@ while (<SLOWLOG>) {
       my $show_st = sprintf("%21s",todatetime(($doneTime-$query_time)));
       my $show_dt = sprintf("%21s",todatetime($doneTime));
       my $show_re = sprintf("%8d",$row_examined);
-      print "QueryTime:$show_qt Start:$show_st Done:$show_dt Rows examin:$show_re\n";
+      print "# QueryTime:$show_qt Start:$show_st Done:$show_dt Rows examin:$show_re\n";
       print $chunk;
     }
     $inTime = 0;
