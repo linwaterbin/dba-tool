@@ -76,7 +76,7 @@ GetOptions(\%opt,
     'd|debug',          # debug mode
     's|start=s',
     'u|until=s',
-    'i|ignore'
+    'i|ignore',
     'z|timezone=i'
 ) or print_usage();
 my $slowfile = "/u01/mysql/log/slow.log";
