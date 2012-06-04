@@ -65,7 +65,8 @@ sub print_usage{
         -i|ignor-start
                 ignore the start time line:
                 QueryTime:374.834887 Start:2012-4-26 4:27:4 Done:2012-4-26 4:33:19
-
+        -i|ignor-start=i
+                current Timezone.
 EOF
   exit ;
 }
@@ -76,15 +77,18 @@ GetOptions(\%opt,
     's|start=s',
     'u|until=s',
     'i|ignore'
+    'z|timezone=i'
 ) or print_usage();
 my $slowfile = "/u01/mysql/log/slow.log";
 my $start = "";
 my $unitl = "";
 my $ignore = 0;
+my $timezone = 0;
 $slowfile = $opt{f} if $opt{f};
 $start = $opt{s} if $opt{s};
 $until = $opt{u} if $opt{u};
 $ignore = $opt{i} if $opt{i};
+$timezone = $opt{z} if $opt{z};
 
 if( !-e $slowfile){
   print_usage(); 
@@ -100,8 +104,12 @@ sub tounixtime{
 }
 sub todatetime{
   my $u = int($_[0]);
-  my ($sec, $min, $hour, $day,$month,$year) = (localtime($u))[0,1,2,3,4,5];
-  return ($year+1900)."-".($month+1)."-$day $hour:$min:$sec";  
+  $u = $u + $timezone*3600; # Time zone +8
+  my ($sec,$min,$hour,$day,$mon,$year,$wday,$yday,$isdest)=(gmtime($u));
+  $year = int($year) + 1900;
+  $mon = $mon + 1;
+  my $curtime = sprintf("%4d-%02d-%02d %02d:%02d:%02d",$year,$mon,$day,$hour,$min,$sec);
+  return $curtime;
 }
 
 my $chunk = "";
