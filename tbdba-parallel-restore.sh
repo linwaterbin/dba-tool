@@ -28,19 +28,19 @@ print_usage()
     -u the user which connect to the database Default: root
     -p the password                           Default:
     -S the MySQL socket                       Default: /var/lib/mysql/mysql.sock
-    -P How many concurrency thread to restore Default: 24
+    -c How many concurrency thread to restore Default: 24
 EOF
 }
 if [ $# -lt 1 ];then
   print_usage
   exit -1
 fi
-while getopts ":d:p:u:p:h:S:" opt; do
+while getopts ":d:p:u:c:h:S:" opt; do
   case $opt in
     d)
       dir=$OPTARG   #get the value
       ;;
-    P)
+    c)
       parallel=$OPTARG   #get the value
       ;;
     u)
@@ -68,7 +68,11 @@ done
 for f in `ls $dir/split*.sql`
 do
   echo $f
-  cat $f|mysql -u$user -p$pass -h$host -S $socket &
+  password=""
+  if [ "x$pass" != "x" ];then
+    password="-p$pass"
+  fi
+  cat $f|mysql -u$user $password -h$host -S $socket &
   run=`ps -ef | grep "$socket" | wc -l`
   while [ $run -gt $parallel ]
   do
