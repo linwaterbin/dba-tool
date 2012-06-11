@@ -71,10 +71,10 @@ sub print_usage () {
           tbdba-restore-mysqldump.pl -t process -s monitor -f backup.sql
        3. Get table "process","users" of database "monitor" from backup.sql
           tbdba-restore-mysqldump.pl -t process,user -s monitor -f backup.sql
-       4. Get the table sql file from a STDIN 
+       4. Get sql files of some tables from a STDIN 
           gunzip -c backup.sql.gz|tbdba-restore-mysqldump.pl -t process,user -s monitor
-       5. Get all the table sql files in schema 'monitor'
-          gunzip -c backup.sql.gz|tbdba-restore-mysqldump.pl -s monitor 
+       5. Get all the tables's sql files in schema 'monitor'
+          gunzip -c backup.sql.gz|tbdba-restore-mysqldump.pl -s monitor --all-tables
        6. Get all the table sql files in the dump file 
           tbdba-restore-mysqldump.pl --all-tables -f backup.sql
           Get all the table sql files in *** DATABASE *** monitor 
@@ -203,7 +203,7 @@ while(<$ifh>){
         }
       }
     }
-    if($inTableFlag == 1){
+    if($inTableFlag == 1 && $inDBFlag == 1){
       open (TABFILE, ">>$outputdir"."split-$curdb"."-$curtab".".sql");
       print TABFILE "$dumpHeader";
       print TABFILE "\n\n";
