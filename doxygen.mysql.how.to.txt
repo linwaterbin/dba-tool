@@ -1,0 +1,18 @@
+1. install doxygen && graphviz
+   yum install doxygen
+   yum install graphviz
+
+2. config 
+   doxygen -g doxygen.conf
+   Customize as doxygen.mysql.conf.diff
+
+3. Generate the html file
+   doxygen doxygen.conf
+
+4. put the html files in a web dir
+   sth. like:
+   ln -s THEOUTPUT /var/www/output
+
+5. Job done.
+   visit it via chrome. sth. like 
+   http://yourdomain/output/html/classItem.html
