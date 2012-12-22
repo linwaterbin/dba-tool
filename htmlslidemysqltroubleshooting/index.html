@@ -1,0 +1,668 @@
+<html>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=1024" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<title>Troubleshooting MySQL -- Case and Methodology</title>
+<meta name="description" content="Toubleshooting MySQL by orczhou.com;Tools include oprofile explain tcprstat gdb pmp orzdba" />
+<meta name="author" content="orczhou" />
+<link href="css/orczhous.css" rel="stylesheet" />
+</head>
+
+<body class="impress-not-supported">
+
+<!--
+    For example this fallback message is only visible when there is `impress-not-supported` class on body.
+-->
+<div class="fallback-message">
+    <p>Your browser <b>doesn't support the features required</b> by impress.js, so you are presented with a simplified version of this presentation.</p>
+    <p>For the best experience please use the latest <b>Chrome</b>, <b>Safari</b> or <b>Firefox</b> browser.</p>
+</div>
+<div id="impress">
+
+<!--Title-->
+    <div id="title" class="step" data-x="-4000" data-y="-2800" data-scale="4">
+        <div align="right">
+        <h2>MySQL Troubleshooting</h2>
+        <span class="footnote">Case and Methodology<br/></span>
+        <span class="footnote"><a href="http://orczhou.com" target="_blank">orczhou</a>@<a href="http://www.hellodb.net/2012/12/askhellodba-database-forum-2.html" target="_blank">AskHelloDBA</a></span>
+        </div>
+    </div>
+
+
+<!--pages-->
+    <div id="pages-1" class="step slide" data-x="-1000" data-y="-1500">
+        <div class="normal-page-title">一般过程</div>
+        <ul>
+        <li class="li-level-1">定义问题</li>
+            <ul>
+                <li  class="li-level-2">明确的</li>
+                <li  class="li-level-2">间歇性发生/未明确的</li>
+            </ul>          
+        <li class="li-level-1">重现问题</li>
+            <ul>
+                <li class="li-level-2">Y</li>
+                <li class="li-level-2">N: pt-stalk systemtap等触发式监控</li>
+            </ul>          
+        <li  class="li-level-1">解决一类问题</li>
+            <ul>
+                <li class="li-level-2">推广方案</li>
+                <li class="li-level-2">Share</li>
+            </ul>          
+        </ul>
+    </div>
+
+    <div id="pages-2" class="step slide" data-x="0" data-y="0" data-scale="3">
+        <div class="normal-page-title">案例</div>
+            <li  class="li-level-1">为什么我们的dump很慢?</li>
+            <li  class="li-level-1">为什么应用程序抛错?</li>
+    </div>
+
+    <div id="pages-3" class="step" data-x="1850" data-y="4000" data-rotate="90" data-scale="1">
+        <div class="normal-page-title">为什么我们的dump很慢</div>
+        <ul>
+            <li class="li-level-1">现象</li>
+            <ul>
+            <li class="li-level-2">原来只要8分钟，为什么今天30分钟？</li>
+            <li class="li-level-2">select * from a_a_0000; 300万数据 1.0GB</li>
+            </ul>
+        </ul>
+    </div>
+
+    <div id="pages-4" class="step" data-x="2025" data-y="825" data-z="-3000" data-rotate="300" data-scale="1">
+        <div class="normal-page-title">量化问题</div>
+        <ul>
+            <li class="li-level-1">slow_ana.pl -f slow.ana.log.Fri</li>
+        </ul>
+        <div>
+            <div style="float:left;width:335px;">
+                <div class="mycode"><pre> host         avg  max  min
+rd007002.idc 687 2064.1 164
+rd007003.idc 162 268.70 146
+rd007004.idc 353 948.52 143
+rd007005.idc 440 1314.9 146
+rd007006.idc 392 1137.5 143
+rd007007.idc 559 1728.9 145
+rd007008.idc 617 1858.9 151
+rd007009.idc 482 1479.8 143
+rd007010.idc 568 1782.1 147
+rd007012.idc 616 1962.9 157
+rd007013.idc 598 1937.5 149
+rd007014.idc 781 2203.1 230
+rd007015.idc 817 2602.3 144
+rd007016.idc 830 2613.7 148
+rd007017.idc 774 2484.2 144
+rd007018.idc 686 2191.8 154</pre>
+                </div>
+            </div>
+            <div style="float:left;width:335px;margin-left:20px;">
+                <div class="mycode"><pre> host         avg  max  min
+rd007002.idc 687 2064.1 164
+rd007003.idc 162 268.70 146
+rd007004.idc 353 948.52 143
+rd007005.idc 440 1314.9 146
+rd007006.idc 392 1137.5 143
+rd007007.idc 559 1728.9 145
+rd007008.idc 617 1858.9 151
+rd007009.idc 482 1479.8 143
+rd007010.idc 568 1782.1 147
+rd007012.idc 616 1962.9 157
+rd007013.idc 598 1937.5 149
+rd007014.idc 781 2203.1 230
+rd007015.idc 817 2602.3 144
+rd007016.idc 830 2613.7 148
+rd007017.idc 774 2484.2 144
+rd007018.idc 686 2191.8 154</pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="ing" class="step" data-x="3500" data-y="-850" data-rotate="270" data-scale="1">
+        <div class="normal-page-title">猜测原因</div>
+        <ul>
+            <li class="li-level-1">无法精确定位/无法直接操作在线库</li>
+            <li class="li-level-1">猜测</li>
+            <ul>
+            <li class="li-level-2">
+                app? 
+                <b class="positioning">网络?</b> 
+                <b class="rotating">MySQL Linux?</b> 
+                <b class="scaling">主机/Flashcache 调度问题？</b>
+            </li>
+            </ul>
+        </ul>
+    </div>
+
+    <div id="page-6" class="step" data-x="0" data-y="2000" data-rotate="270" data-scale="1">
+        <div class="normal-page-title">部署监控 尝试重现</div>
+        <ul>
+            <li class="li-level-1">30秒一次：[MySQL问题?]</li>
+            <ul>
+                <li class="li-level-2">show full processlist\G</li>
+                <li class="li-level-2">show innodb status\G</li>
+                <li class="li-level-2">show global status</li>
+            </ul>
+            <li class="li-level-1">tcpdump收集当时的网络数据[网络问题?]</li>
+            <li class="li-level-1">dba_ping.sh -d 10.246.2.19 -d 10.246.2.45[网络问题?]</li>
+        </ul>
+    </div>
+
+    <div id="page-7" class="step" data-x="2000" data-y="-1500" data-rotate="270" data-scale="1">
+        <div class="normal-page-title">过程分析</div>
+        <ul>
+            <li class="li-level-1">show full processlist</li>
+            <ul>
+                <li class="li-level-2">大量SQL都处于Sending data状态</li>
+                <ul>
+                    <li class="li-level-3">The thread is reading and processing rows for a SELECT statement</li>
+                </ul>
+                <li class="li-level-2">不是网络或者dump端问题</li>
+            </ul>
+            <li class="li-level-1">[实验] client端存储慢：</li>
+            <ul>
+                <li class="li-level-2">MySQL处于Writing to net状态: The server is writing a packet to the network.</li>
+            </ul>
+        </ul>
+    </div>
+
+
+    <div id="page-8" class="step" data-x="3200" data-y="2200" data-rotate="180" data-scale="1">
+        <div class="normal-page-title">过程分析tcpdump</div>
+        <img src="./images/tcpdump.png" height="400px;"/>
+        <div>
+        <ul>
+            <li class="li-level-1">ACK非常快</li>
+            <li class="li-level-1">发包间隔很长!!!</li>
+        </ul>
+        </div>
+    </div>
+
+    <div id="page-9" class="step" data-x="-1200" data-y="1600" data-rotate="180" data-scale="1">
+        <div class="normal-page-title">重现问题</div>
+        <div>
+        <ul>
+            <li class="li-level-1">低峰时间段模拟dump</li>
+            <li class="li-level-1">实用gdb/oprofile/pmp分析现场</li>
+        </ul>
+        </div>
+    </div>
+
+    <div id="page-10" class="step" data-x="-1200" data-y="2800" data-rotate="90" data-scale="1">
+        <div class="normal-page-title">GDB(1)</div>
+            <div>
+                <div class="mycode">
+                <pre>#0  0x00000037c340ab99 in pthread_cond_wait@@GLIBC_2.3.2
+#1  0x00002aaab307e9a5 in os_event_wait_low
+#2  0x00002aaab30cb075 in sync_array_wait_event
+#3  0x00002aaab30cbf12 in mutex_spin_wait
+#4  0x00002aaab30185c7 in buf_page_set_accessed_make_young
+#5  0x00002aaab3018679 in buf_page_optimistic_get
+#6  0x00002aaab300d3e2 in btr_pcur_restore_position_func
+#7  0x00002aaab30b4bc7 in sel_restore_position_for_mysql
+#8  0x00002aaab30b8432 in row_search_for_mysql
+#11 0x000000000061b756 in sub_select
+#12 0x000000000062e0ad in do_select
+                </pre>
+                </div>
+            </div>
+    </div>
+
+
+    <div id="page-11" class="step" data-x="-2000" data-y="0" data-rotate="270" data-scale="1">
+        <div class="normal-page-title">GDB(2)</div>
+            <div>
+                <div class="mycode">
+                <pre>#0  0x00002aaab3020481 in <span style="color:red;font-weight:bold;">buf_LRU_search_and_free_block</span>
+#1  0x00002aaab302094e in buf_LRU_get_free_block
+#2  0x00002aaab301643e in buf_page_init_for_read
+#3  0x00002aaab30214d5 in buf_read_page_low
+#4  0x00002aaab3021ec1 in buf_read_ahead_linear
+#5  0x00002aaab3018d0e in buf_page_get_gen
+#6  0x00002aaab300c612 in btr_pcur_move_to_next_page
+#7  0x00002aaab30b8d6a in row_search_for_mysql
+#8  0x00002aaab305133c in ha_innodb::general_fetch
+#9  0x00000000006a7d97 in <span style="color:red;font-weight:bold;">rr_sequential</span>
+#10 0x000000000061b756 in sub_select
+#11 0x000000000062e0ad in do_select
+#12 0x000000000063b0d4 in JOIN::exec
+                </pre>
+                </div>
+            </div>
+    </div>
+
+
+
+    <div id="page-12" class="step" data-x="-2800" data-y="0" data-rotate="270" data-scale="1">
+        <div class="normal-page-title">oprofile</div>
+            <div style="width:850px;">
+                <div class="mycode">
+                <pre>CPU: CPU with timer interrupt, speed 0 MHz (estimated)
+Profiling through timer interrupt
+samples  %        image name               symbol name
+34043    72.3826  ha_innodb_plugin.so.0.0.0 <span style="color:red;font-weight:bold;">buf_LRU_search_and_free_block</span>
+4837     10.2845  ha_innodb_plugin.so.0.0.0 ut_delay
+2959      6.2915  ha_innodb_plugin.so.0.0.0 buf_LRU_free_block
+1283      2.7279  libpthread-2.5.so         pthread_mutex_lock
+851       1.8094  ha_innodb_plugin.so.0.0.0 buf_page_is_corrupted
+546       1.1609  ha_innodb_plugin.so.0.0.0 mutex_spin_wait
+315       0.6698  libc-2.5.so               memcpy
+239       0.5082  ha_innodb_plugin.so.0.0.0 buf_calc_page_new_checksum
+179       0.3806  ha_innodb_plugin.so.0.0.0 rec_get_offsets_func
+162       0.3444  libpthread-2.5.so         pthread_mutex_unlock
+107       0.2275  ha_innodb_plugin.so.0.0.0 row_search_for_mysql
+98        0.2084  ha_innodb_plugin.so.0.0.0 row_sel_store_mysql_rec</pre>
+                </div>
+            </div>
+    </div>
+
+    <div id="page-13" class="step" data-x="-4000" data-y="0" data-rotate="270" data-scale="1">
+        <div class="normal-page-title">原因小结</div>
+        <ul>
+            <li class="li-level-1">LRU链表上有太多的search and free</li>
+            <ul>
+                <li class="li-level-2">old list中有大量dirty page</li>
+                <li class="li-level-2">dump所需页面远大于可以使用的页面</li>
+            </ul>
+        </ul>
+        <img src="./images/bplrulist.png" height="350px"/>
+    </div>
+
+    <div id="page-14" class="step" data-x="4500" data-y="0" data-rotate="270" data-scale="1">
+        <div class="normal-page-title">修改策略</div>
+        <ul>
+            <li class="li-level-1">通过预热减少Buffer Pool中的脏页</li>
+            <li class="li-level-1">修改innodb_old_blocks_time = 1000 减少页面从old sublist移到new sublist</li>
+            <li class="li-level-1">开始dump时通过设置innodb_max_dirty_pages_pct 减少脏页的数量</li>
+        </ul>
+    </div>
+
+    <div id="page-15" class="step" data-x="5500" data-y="0" data-rotate="270" data-scale="1">
+        <div class="normal-page-title">有效性验证</div>
+        <ul>
+            <li class="li-level-1">innodb_max_dirty_pages_pct验证</li>
+            <li class="li-level-1">innodb_old_blocks_time = 1000验证有效</li>
+            <img src="./images/checkagain.png" height="350px"/>
+        </ul>
+    </div>
+
+    <div id="page-16" class="step" data-x="6500" data-y="0" data-rotate="270" data-scale="1">
+        <div class="normal-page-title">建议规范</div>
+        <div class="mycode"><pre>SET GLOBAL innodb_old_blocks_time = 1000;
+
+开始dump
+
+SET GLOBAL innodb_old_blocks_time = 0;</pre>
+        </div>
+    </div>
+
+
+    <div id="pages-17" class="step" data-x="7500" data-y="0" data-z="-500" data-rotate="270" data-scale="1">
+        <div class="normal-page-title">结果</div>
+        <ul>
+            <li class="li-level-1">slow_ana.pl -f slow.ana.log.Fri</li>
+        </ul>
+        <div>
+            <div style="float:left;width:335px;">
+                <div class="mycode"><pre>host         avg  max  min
+rd007002.idc 687 2064.1 164
+rd007003.idc 162 268.70 146
+rd007004.idc 353 948.52 143
+rd007005.idc 440 1314.9 146
+rd007006.idc 392 1137.5 143
+rd007007.idc 559 1728.9 145
+rd007008.idc 617 1858.9 151
+rd007009.idc 482 1479.8 143
+rd007010.idc 568 1782.1 147
+rd007012.idc 616 1962.9 157
+rd007013.idc 598 1937.5 149
+rd007014.idc 781 2203.1 230
+rd007015.idc 817 2602.3 144
+rd007016.idc 830 2613.7 148
+rd007017.idc 774 2484.2 144
+rd007018.idc 686 2191.8 154</pre>
+                </div>
+            </div>
+            <div style="float:left;width:80px;"><pre> ==&gt; </pre></div>
+            <div style="float:left;width:300px;margin-left:20px;">
+                <div class="mycode"><pre> host        avg max min
+rd007002.idc 206 260 158
+rd007003.idc 201 248 161
+rd007004.idc 206 262 170
+rd007005.idc 204 257 169
+rd007006.idc 204 257 166
+rd007007.idc 206 278 161
+rd007008.idc 206 250 162
+rd007009.idc 205 258 162
+rd007010.idc 208 271 163
+rd007012.idc 209 267 154
+rd007013.idc 206 280 154
+rd007014.idc 207 278 155
+rd007015.idc 203 287 154
+rd007016.idc 205 273 153
+rd007017.idc 203 276 152
+rd007018.idc 188 247 108</pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="page-18" class="step" data-x="4500" data-y="-1200" data-rotate="270" data-scale="1">
+        <div class="normal-page-title">工具说明</div>
+        <ul>
+            <li class="li-level-1">oprofile 是一个“全局”的抽样统计</li>
+            <ul><li class="li-level-2">perf top or… sth else</li></ul>
+            <li class="li-level-1">gdb 是一个“现场快照”</li>
+            <li class="li-level-1">tcpdump 是一个“流量录像”</li>
+        </ul>
+    </div>
+
+    <div id="page-19" class="step" data-x="5500" data-y="-1200" data-rotate="270" data-scale="1">
+        <div class="normal-page-title">oprofile cheatsheet</div>
+        <div class="mycode"><pre>sudo yum install binutils-devel
+./configure --with-kernel-support && make
+make install
+sudo opcontrol --deinit
+sudo modprobe oprofile timer=1  
+$dmesg|grep oprofile|tail -n 1
+  (oprofile: using timer interrupt.)
+sudo opcontrol --reset
+sudo opcontrol --separate=lib --no-vmlinux \
+--start --image=/u01/mysql/libexec/mysqld
+sudo opcontrol --dump
+sudo opcontrol --shutdown
+opreport -l /u01/mysql/libexec/mysqld</pre></div>
+    </div>
+
+    <div id="page-20" class="step" data-x="6500" data-y="-1200" data-rotate="270" data-scale="1">
+        <div class="normal-page-title">gdb+pmp cheatsheet</div>
+        <div class="mycode"><pre>sudo sh -c 'gdb -ex "set pagination 0" –ex \
+"thread apply all bt" --batch \
+-p $(pidof mysqld) > bt.log'
+
+
+sudo sh -c 'gdb -ex "set pagination 0" -ex \
+"thread apply all bt full" --batch \
+-p $(pidof mysqld) > bt.log.full'
+</pre></div>
+
+        <li><a href="http://poormansprofiler.org/">Poor man's profile</a>
+        </li>
+        <img src="./images/pmplogo.png" height="100px"/>
+    </div>
+
+    <div id="page-21" class="step" data-x="7500" data-y="-1500" data-rotate="270" data-scale="1">
+        <div class="normal-page-title">tcpdump cheatsheet</div>
+        <div class="mycode"><pre>nohup tcpdump -n -nn -tttt -i bond0 \
+-s 65535 'port 3306' -w tcpdump.ret -C 100 &
+</pre></div>
+        <ul>
+            <li>剩下的交给wireshark</li>
+            <img src="./images/wiresharklogo.png" height="100px"/>
+        </ul>
+    </div>
+
+    <div id="page-22" class="step" data-x="4500" data-y="1500" data-rotate="270" data-scale="1">
+        <div class="normal-page-title">流程</div>
+        <img src="./images/troubleshooting-mysql.png"/>
+    </div>
+
+    <div id="page-23" class="step" data-x="5500" data-y="1500" data-rotate="270" data-scale="1">
+        <div class="normal-page-title">案例2: 数据库是不是有波动?</div>
+        <ul>
+            <li class="li-level-1">告警增多，应用大量超时失败</li>
+            <li class="li-level-1">持续时间较短，不定时出现</li>
+        </ul>
+    </div>
+
+    <div id="page-24" class="step" data-x="6500" data-y="1500" data-rotate="270" data-scale="1">
+        <div class="normal-page-single-line">数据库是否有问题?</div>
+    </div>
+
+    <div id="page-25" class="step" data-x="7500" data-y="1500" data-rotate="270" data-scale="1">
+        <div class="normal-page-title">确定这是一个数据库问题</div>
+        <li class="li-level-1">Repsonse Time</li>
+        <div class="normal-page-small">
+        $tcprstat -l $ip_addr -t $interval -n $count
+        </div>
+        <div class="mycode" style="width:350px;"><pre>RT/us         Time
+736    2012-06-05 15:12:11
+62195  2012-06-05 15:12:19
+822385 2012-06-05 15:12:27
+758795 2012-06-05 15:12:35
+263320 2012-06-05 15:12:44
+732564 2012-06-05 15:12:52
+757521 2012-06-05 15:13:00
+677436 2012-06-05 15:13:08
+75488  2012-06-05 15:13:16
+3725   2012-06-05 15:13:24
+3042   2012-06-05 15:13:32
+2393   2012-06-05 15:13:41
+2590   2012-06-05 15:13:49
+</pre></div>
+    </div>
+
+    <div id="page-26" class="step" data-x="4500" data-y="2800" data-rotate="270" data-scale="1">
+        <div class="normal-page-title">Key Performance Indication</div>
+        <ul>
+            <li class="li-level-1">KPIs</li>
+            <ul>
+                <li class="li-level-2">com_select/insert/update/delete</li>
+                <li class="li-level-2">Innodb_rows_read/update/delete/insert</li>
+                <li class="li-level-2">Innodb_logical_read/physical_read</li>
+            </ul>
+        </ul>
+        <img src="./images/kpis.png" height="200px">
+    </div>
+
+    <div id="page-27" class="step" data-x="5500" data-y="2800" data-rotate="270" data-scale="1">
+        <div class="normal-page-title">慢日志</div>
+        <ul>
+            <li class="li-level-1">检查慢日志(80%)</li>
+            <ul>
+            <li class="li-level-2">pt-query-digest mysqldumpslow</li>
+            <li class="li-level-2"><a href="https://github.com/orczhou/dba-tool/blob/master/tbdba-slow-picker.pl">tbdba-slow-picker.pl</a></li>
+            <span style="font-size:24px;"> 按SQL开始时间处理</span>
+            <li class="li-level-2">cheatsheet</li>
+            <div class="mycode"><pre>mysqldumpslow -a -s at slow.log.old &gt; slow.3.dat
+pt-query-digest --filter \
+'(\$event-&gt;{user}) =~ m/^(?!dw|search|root|dump|slave)/'\
+ --report-format=profile,query_report 
+</pre></div>
+        <div class="mycode"><pre>./tbdba-slow-picker.pl -z 8 \
+-s “2012-06-04 16:52:48” \
+-u “2012-06-04 16:53:04” \
+-f  /u01/mysql/log/slow.log > slow.hit.log  
+</pre></div>
+            </ul>
+        </ul>
+    </div>
+
+    <div id="page-28" class="step" data-x="6500" data-y="2800" data-rotate="270" data-scale="1">
+        <div class="normal-page-title">pt-stalk cheatsheet</div>
+        <ul>
+            <li class="li-level-1">使用pt-stalk精准的抓住现场：</li>
+            <div class="mycode"><pre>#!/bin/bash
+MYSQL_HOME=/u01/mysql
+PATH=$MYSQL_HOME/bin:$PATH:$HOME/bin:/home/mysql/bin
+export MYSQL_HOME
+export PATH
+pt-stalk --collect-tcpdump --function status \
+--variable Threads_connected --threshold 2500 \
+--daemonize -- --user=root
+</pre></div>
+        </ul>
+    </div>
+
+    <div id="page-29" class="step" data-x="7500" data-y="2800" data-rotate="270" data-scale="1">
+        <div class="normal-page-title">发现的各种问题</div>
+        <ul>
+            <li class="li-level-1">应用异常</li>
+            <li class="li-level-1">SQL效率问题</li>
+            <li class="li-level-1">错误的执行计划问题</li>
+        </ul>
+    </div>
+
+    <div id="page-30" class="step" data-x="3500" data-y="4100" data-rotate="270" data-scale="1">
+        <div class="normal-page-title">索引覆盖扫描</div>
+        <ul>
+            <li class="li-level-1">索引覆盖扫描 vs 回表</li>
+            <div>
+                <div class="mycode" style="float:left;width:380px;"><pre>select 
+  count(*)
+from 
+  t1 
+     force index(IND_DATAIDGMT)
+where  
+  is_main = 1 and 
+  (
+    the_type=100 or 
+    the_type=200 or 
+    the_type=300 or 
+    the_type=500
+   ) and 
+  data_id=631389273 and 
+  status=0 and 
+  gmt_modified &gt;= '2012-03-28' and 
+  gmt_modified &lt;= '2012-03-29';
+</pre>
+            </div>
+            <div class="mycode" style="float:left;width:300px;margin-left:20px;"><pre>原索引:
+KEY `IND_DATAIDGMT` (
+  `DATA_ID`,
+  `GMT_MODIFIED`
+);
+新索引:
+KEY`IND_DATAIDGMT` (
+  `DATA_ID`,
+  `GMT_MODIFIED`,
+  `the_type`,
+  `status`,
+  `is_main`);
+</pre>
+            </div>
+        </div>
+        </ul>
+    </div>
+
+    <div id="page-31" class="step" data-x="4500" data-y="4100" data-rotate="270" data-scale="1">
+        <div class="normal-page-title">索引覆盖扫描 vs 回表</div>
+        <ul>
+            <li class="li-level-1">以逻辑读评估</li>
+            <div class="mycode"><pre>相同的SQL，当覆盖索引和非覆盖索引时候的性能(以逻辑读评估)：
+|No. | Not Cover | Cover all | 
+|1   | 578186    | 14529     |
+|2   | 444781    | 14529     |
+|3   | 362091    | 14529     | 
+|4   | 358816    | 14529     | 
+|5   | 358816    | 14529     |
+|6   | 358816    | 14529     |
+|7   | 358816    | 14529     | 
+|8   | 358816    | 14529     | 
+|9   | 358823    | 14529     |  
+|10  | 358816    | 14529     | 
+|AVG | 389678    | 14529     | 
+</pre></div>
+            <li class="li-level-1">性能相差约<span style="color:red;font-size:72px;">25</span>倍 389678/14529</li>
+        </ul>
+    </div>
+
+    <div id="page-32" class="step" data-x="5500" data-y="4100" data-rotate="270" data-scale="1">
+        <div class="normal-page-title">错误的执行计划</div>
+        <ul>
+            <li class="li-level-1">表/索引结构</li>
+            <div class="mycode"><pre>CREATE TABLE `users` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `uid` int(11) NOT NULL,
+  `l_date` datetime NOT NULL,
+  `data` varchar(32) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `ind_uidldate` (`uid`,`l_date`)
+) ENGINE=InnoDB DEFAULT CHARSET=gbk</pre></div>
+            <li class="li-level-1">意外的执行计划</li>
+            <div class="mycode" style="width:1000px;"><pre>explain select * from users 
+where uid=9527 and l_date &gt;= '2012-12-10 10:13:17' order by l_date limit 0,10;
++----+-------------+-------+------+---------------+--------------+---------+-------+------+-------------+
+| id | select_type | table | type | possible_keys | key          | key_len | ref   | rows | Extra       |
++----+-------------+-------+------+---------------+--------------+---------+-------+------+-------------+
+|  1 | SIMPLE      | users | ref  | ind_uidldate  | ind_uidldate | 4       | const |  473 | Using where |
++----+-------------+-------+------+---------------+--------------+---------+-------+------+-------------+</pre></div>
+            <li class="li-level-1">为什么不走更长key length的range?</li>
+        </ul>
+    </div>
+
+    <div id="page-33" class="step" data-x="6500" data-y="4100" data-rotate="270" data-scale="1">
+        <div class="normal-page-title">当前场景，原因分析</div>
+        <ul>
+            <li class="li-level-1">小记录，range选择度大于17%，放弃</li>
+            <li class="li-level-1">小记录，ref选择度大于93%，放弃</li>
+            <li class="li-level-1">问题背景</li>
+            <ul>
+                <li class="li-level-2">选择度分析：<a href="http://www.orczhou.com/index.php/2012/12/mysql-source-code-optimizer-range-and-ref/">参考</a></li>
+                <li class="li-level-2">问题的历史：<a href="http://bugs.mysql.com/bug.php?id=12113">bug#12113</a> <a href="http://www.mysqlperformanceblog.com/2006/06/02/indexes-in-mysql/">Indexes in MySQL@Performance Blog</a></li>
+                <li class="li-level-2">版本：5.1/5.5/5.6</li>
+            </ul>
+        </ul>
+    </div>
+
+    <div id="page-34" class="step" data-x="7500" data-y="4100" data-rotate="270" data-scale="1">
+        <div class="normal-page-title">如何解决</div>
+        <ul>
+            <li class="li-level-1">force index: 放弃全表</li>
+            <li class="li-level-1">patch:统一range与ref的代价评估</li>
+            <ul>
+            <li class="li-level-2"><a href="http://mysql.taobao.org/images/0/02/Optimizerfixbug12113.diff">optimizerfix.diff</a></li>
+            </ul>
+        </ul>
+    </div>
+
+    <div id="page-35" class="step" data-x="8500" data-y="4100" data-rotate="270" data-scale="1">
+        <div class="normal-page-title">小结</div>
+        <ul>
+            <li class="li-level-1">关注慢日志</li>
+            <li class="li-level-1">理解Explain</li>
+            <div class="mycode"><pre>explain select * from users where uid=9527 and l_date &gt;= '2012-12-10 10:13:17' order by l_date limit 0,10\G
+*************************** 1. row ***************************
+           id: 1
+  select_type: SIMPLE
+        table: users
+         type: ref
+possible_keys: ind_uidldate
+          key: ind_uidldate
+      key_len: 4
+          ref: const
+         rows: 885
+        Extra: Using where
+        Extra: Using where</pre></div>
+        </ul>
+    </div>
+
+    <div id="page-36" class="step" data-x="3500" data-y="5400" data-rotate="270" data-scale="1">
+        <div class="normal-page-title">最后</div>
+        <ul>
+            <li>正确的流程</li>
+            <img src="images/troubleshooting-mysql.png"/>
+            <li>合适的工具</li>
+            <ul>
+                <li class="li-level-3">MySQL Status: com_sel/upd/del/ins innodb_row_sel/upd/del/ins...</li>
+                <li class="li-level-3">Linux: top/iostat/mpstat tcpdump/oprofile/gdb</li>
+                <li class="li-level-3">SQL: Explain pt-toolkit mysqldumpslow</li>
+            </ul>
+        </ul>
+    </div>
+
+    <div id="page-37" class="step" data-x="3000" data-y="1500" data-scale="3">
+    <div style="font-size:180px;color:red;">Q & A</div>
+    </div>
+
+</div>
+<script src="js/impress.js"></script>
+<script>impress().init();</script>
+
+
+
+<div style="position: fixed; bottom: 10px; right: 10px; pointer-events: auto;">
+<a href="#">Powered by Alibaba/Taobao</a>
+</div>
+</body>
+</html>
