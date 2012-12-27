@@ -1,0 +1,222 @@
+--- ./sql/opt_range.cc	2010-06-03 23:50:10.000000000 +0800
++++ /u01/sandbox/src/mysql-5148/sql/opt_range.cc	2012-12-26 17:36:25.000000000 +0800
+@@ -84,6 +84,211 @@
+ 
+ static uchar is_null_string[2]= {1,0};
+ 
++
++/*
++   Just for practice.
++   Output the condition as a format tree
++sample: 
++ where (c4 <55) and (c1 >= 20 or (c3 < 33 and c3>34)) and (c4 <= 56);
++
++                            / c4
++     / LT(<) --Item **args--|
++     |                      \ value
++     |                            / c1
++     |     / GE(>=)--Item **args--|
++     |     |                      \ value
++     |     |                            / c3
++ AND | OR  |     / LT(<) --Item **args--|
++     |     | AND |                      \ value
++     |     |     |                      / c3
++     |     \     \ GT(>) --Item **args--|
++     |                                  \ value
++     |                      / c4
++     \ LE(<=)--Item **args--|
++                            \ value
++ * */
++#define MAX_COND_OUTPUT 10240
++int linecounter(const char *content){
++  int i = 0,c = 0;
++  while(content[i] != '\0'){
++    content[i] == '\n' ? c++ : 0;
++    i++;
++  }
++  return c;
++}
++/*
++ title : OR 
++ append:
++                          / c1
++     LE(<=)--Item **args--|
++                          \ value
++
++                          / c2
++     GT(>) --Item **args--|
++                          \ value
++ output:
++            
++                            / c1
++     / LE(<=)--Item **args--|
++     |                      \ value
++AND=>|
++     |                      / c2
++     \ GT(>) --Item **args--|
++                            \ value
++
++sample: 
++ where (c4 <55) and (c1 >= 20 or (c3 < 33 and c3>34)) and (c4 <= 56);
++
++                            / c4
++     / LT(<) --Item **args--|
++     |                      \ value
++     |                            / c1
++     |     / GE(>=)--Item **args--|
++     |     |                      \ value
++     |     |                            / c3
++ AND | OR  |     / LT(<) --Item **args--|
++     |     | AND |                      \ value
++     |     |     |                      / c3
++     |     \     \ GT(>) --Item **args--|
++     |                                  \ value
++     |                      / c4
++     \ LE(<=)--Item **args--|
++                            \ value
++
++*/
++void combinate(char *in,const char *title,const char *append){
++  int lines = linecounter(append);
++  int p_append = 0;
++  int p_in= strlen(in);
++  for(int l=1;l <= lines;l++)
++  {
++    if(l == 1)
++    {
++      strcat(in,"      ");
++      p_in += 6;
++    }
++    else if(l == 2)
++    {
++      strcat(in,"     /");
++      p_in += 6;
++    }
++    else if(l == (int)(lines+1)/2)
++    {
++      strcat(in,title);
++      strcat(in,"|");
++      p_in += strlen(title)+1;
++    }
++    else if(l == lines-1)
++    {
++      strcat(in,"     \\");
++      p_in += 6;
++    }
++    else if(l == lines)
++    {
++      strcat(in,"      ");
++      p_in += 6;
++    }
++    else
++    {
++      strcat(in,"     |");
++      p_in += 6;
++    }
++    while(append[p_append++] != '\n' && p_append <= strlen(append)+1){
++      in[p_in++] = append[p_append-1];
++    }
++    in[p_in++] = '\n';
++  }
++  in[p_in++] = '\0';
++}
++/*
++ output: r
++ char r[MAX_COND_OUTPUT];
++ * */
++void format_cond(const COND *cond,char *r){
++  char append[MAX_COND_OUTPUT];
++  memset(append,0,MAX_COND_OUTPUT);
++  char title[MAX_COND_OUTPUT];
++  memset(title,0,MAX_COND_OUTPUT);
++  if (cond->type() == Item::COND_ITEM)
++  {
++    List_iterator<Item> li(*((Item_cond*) cond)->argument_list());
++    if (((Item_cond*) cond)->functype() == Item_func::COND_AND_FUNC)
++    {
++      memcpy(title," AND ",strlen("AND  "));
++    }
++    else
++    {
++      memcpy(title," OR  ",strlen("OR   "));
++    }
++    Item *item;
++    while ((item=li++))
++    {
++      format_cond(item,append);
++    }
++    combinate(r,title,append);
++  }
++  else if(cond->type() == Item::FUNC_ITEM)
++  {
++    Item_func *cond_func= (Item_func*) cond;
++    switch (cond_func->functype()) {
++    case Item_func::BETWEEN:
++      break;
++    case Item_func::IN_FUNC:
++      break;
++    case Item_func::MULT_EQUAL_FUNC:
++        strcat(append,"EQ(=)\n");
++      break;
++    default:
++      /*
++                             / Item_field
++        GT(>) --Item **args--|
++                             \ value
++     */
++      Item_field *field_item;
++      Item *value= 0;
++      field_item= (Item_field*) (cond_func->arguments()[0]->real_item());
++      value= cond_func->arg_count > 1 ? cond_func->arguments()[1] : 0;
++      strcat(append,"                      / ");
++      strcat(append,((Item_ident *)field_item)->field_name);
++      strcat(append,"\n");
++      if(cond_func->functype() == Item_func::GT_FUNC)
++      {
++        strcat(append," GT(>) ");
++      }
++      else if(cond_func->functype() == Item_func::LT_FUNC)
++      {
++        strcat(append," LT(<) ");
++      }
++      else if(cond_func->functype() == Item_func::LE_FUNC)
++      {
++        strcat(append," LE(<=)");
++      }
++      else if(cond_func->functype() == Item_func::GE_FUNC)
++      {
++        strcat(append," GE(>=)");
++      }
++      strcat(append,"--Item **args--|\n");
++      strcat(append,"                      \\ value\n");
++    }
++    strcat(r,append);
++  }
++  else
++  {
++    //Todo: any other?
++  }
++}
++static void print_cond(const COND *cond){
++  DBUG_ENTER("print_cond");
++  char r[MAX_COND_OUTPUT];
++  memset(r,0,MAX_COND_OUTPUT);
++  strcat(r,"<WHERE>\n");
++  fprintf(DBUG_FILE, "%s",">start print_cond\n");
++  format_cond(cond,r);
++  fprintf(DBUG_FILE, "%s",r);
++  DBUG_VOID_RETURN;
++}
++
++
+ class RANGE_OPT_PARAM;
+ /*
+   A construction block of the SEL_ARG-graph.
+@@ -2322,6 +2527,7 @@
+ 
+     if (cond)
+     {
++      print_cond(cond);
+       if ((tree= get_mm_tree(&param,cond)))
+       {
+         if (tree->type == SEL_TREE::IMPOSSIBLE)
