@@ -1,9 +1,18 @@
 #!/usr/bin/perl
+#use Benchmark;
 use Getopt::Long;
 use Time::Local;
+use Time::HiRes qw ( time alarm sleep );
+use POSIX qw(tzset);
+
+@t = localtime(time);
+$gmt_offset_in_seconds = timegm(@t) - timelocal(@t);
+
+my $script_start = time;
+my $script_now = $script_start;
+my $script_pre = $script_start;
 my %opt = (
 );
-
 sub print_usage{
   print <<EOF;
  NAME:
@@ -72,21 +81,33 @@ EOF
 }
 
 GetOptions(\%opt,
-    'f|slow-log=s', 	# write result to database
+    'f|slow-log=s',   # write result to database
     'd|debug',          # debug mode
     's|start=s',
     'u|until=s',
     'i|ignore',
     'z|timezone=i'
 ) or print_usage();
+my $debug = 0;
 my $slowfile = "/u01/mysql/log/slow.log";
-my $start = "";
-my $unitl = "";
+my $start = "2000-01-01 00:00:00";
+my $until = "2038-01-01 23:59:59";
 my $ignore = 0;
 my $timezone = 0;
+$debug = 1 if $opt{d};
 $slowfile = $opt{f} if $opt{f};
-$start = $opt{s} if $opt{s};
-$until = $opt{u} if $opt{u};
+if($opt{s}){
+  $start = $opt{s} if $opt{s};
+}
+else{
+  print STDERR "No input of 'start time' with -s. Use $start as default.\n";
+}
+if($opt{u}){
+  $until = $opt{u} if $opt{u};
+}
+else{
+  print STDERR "No input of 'until time' with -u. Use $until as default.\n";
+}
 $ignore = $opt{i} if $opt{i};
 $timezone = $opt{z} if $opt{z};
 
@@ -104,14 +125,28 @@ sub tounixtime{
 }
 sub todatetime{
   my $u = int($_[0]);
-  $u = $u + $timezone*3600; # Time zone +8
+  #$u = $u + $timezone*3600; # Time zone +8
+  $u = $u + $gmt_offset_in_seconds; # Time zone +8
   my ($sec,$min,$hour,$day,$mon,$year,$wday,$yday,$isdest)=(gmtime($u));
   $year = int($year) + 1900;
   $mon = $mon + 1;
   my $curtime = sprintf("%4d-%02d-%02d %02d:%02d:%02d",$year,$mon,$day,$hour,$min,$sec);
   return $curtime;
 }
+sub timeBetween{
+	my $c = $_[0]; # current time
+	my $s = $_[1]; # start time
+	my $u = $_[2]; # until time
 
+ 	#if(
+	#	($startTime >= tounixtime($start) and $startTime <= tounixtime($until)) or
+	#				($doneTime <= tounixtime($until) and $doneTime >= tounixtime($start))
+	return 0;
+}
+$script_pre = $script_now;
+$script_now = time;
+print STDERR "script start. Now timestamp: $script_now \n" if $debug;
+print STDERR "\nstart picking slow log from <$start> to <$until> \n";
 my $chunk = "";
 my $query_time = "";
 my $inTime = 0;
@@ -119,64 +154,175 @@ my $doneTime = "";
 my $startTime = "";
 my $row_examined = 0;
 my $linenum = 0;
-open (F, $slowfile) || die "Could not open $slowfile: $!\n";
-my @f = <F>;
-close F;
-my $total = @f;
-open(SLOWLOG,"<$slowfile") or print "Can't open file $slowfile";
+my $bytesdone = 0;
+my $bytespre = 0;
+my $remaintime = 0;
+my $elapsed = 0;
+$total = -s $slowfile;
+#  open (F, $slowfile) || die "Could not open $slowfile: $!\n";
+#  my @f = <F>;
+#  close F;
+#  my $total = @f;
+open(SLOWLOG,"<$slowfile") or print STDERR "Can't open file $slowfile";
+$start = tounixtime($start);
+$until = tounixtime($until);
+
+#     # Time: 130116 16:15:36
+#     # User@Host: monitor[monitor] @  [172.20.164.65]
+#     # Thread_id: 3874220129  Schema: tianji  Last_errno: 0  Killed: 0
+#     # Query_time: 1.106857  Lock_time: 0.000073  Rows_sent: 0  Rows_examined: 0  Rows_affected: 1  Rows_read: 0
+#     # Bytes_sent: 11  Tmp_tables: 0  Tmp_disk_tables: 0  Tmp_table_sizes: 0
+#     # InnoDB_trx_id: A23AAB72C
+#     SET timestamp=1358324136;
+#     insert ignore into 
+#      <can be any thing here>
+#     # User@Host: monitor[monitor] @  [172.24.67.48]
+#     # Thread_id: 3874219975  Schema: tianji  Last_errno: 0  Killed: 0
+#
+#  We use prelineflag to identify last line's type.
+#  There are three line type: T U O
+#  		T: # Time: 130116 16:15:36
+#  		U: # User@Host: monitor[monitor] @  [172.24.67.48]
+#  		O: all other case 
+#  (1) everytime in line T, 
+#				frist,  we output the "chunk" fisrt
+#			  second, we update sinTime status
+#       then,   inital sinTime; set uinTime to 0
+#  (2) in line U, 
+#				if pre line is T, do nothing
+#				if pre line is O, we output the chuck fisrt
+#       then, set uinTime to 0
+#  (3) in Line "# Query_time: 1.106857"
+#       if try to update uinTime again
+#       then, update uinTime 
+# 
+#   sinTime means the sql start time piont is in the interval, so query happened in the interval
+#   uinTime means the sql   end time piont is in the interval, so query happened in the interval
+#   
+#
+
+
+my $sinTime = 0;
+my $uinTime = 0;
+my $preLineFlag = 0;
+my $curLineFlag = 0;
+my $curTimeInfo = '';
+my $preTimeInfo = '';
 while (<SLOWLOG>) {
-  $linenum +=1;
-  if($linenum % 30000 == 0){
-    print STDERR int(100*$linenum/$total)."% finished $linenum\/$total To ".todatetime($doneTime)." \n";
+  $linenum += 1;
+  $bytesdone += length;
+  if($linenum % 100000 == 0){
+    $script_pre = $script_now;
+    $script_now = time;
+    $elapsed = $script_now-$script_start;
+    $remaintime = $elapsed*($total-$bytesdone)/$bytesdone;
+    my $stderroutput = sprintf("%6.2f%% finished; Total speed %4.1f MB/s, now speed %4.1f MB/s; Remain time:%5d seconds\n",
+          100*$bytesdone/$total,
+          $bytesdone/$elapsed/1024/1024,
+          ($bytesdone-$bytespre)/($script_now-$script_pre)/1024/1024,
+          $remaintime);
+    print STDERR $stderroutput;
+    $bytespre = $bytesdone;
   }
-###     # Time: 110621 16:53:03
-###     # User@Host: root[root] @ localhost []
-###     # Query_time: 171.489260  Lock_time: 0.000504 Rows_sent: 0  Rows_examined: 0
-###     use tc15;
-###     SET timestamp=1308646383;
-###     alter table tc_biz_order_0248 add index IND_BIZ_ORDER_SELLERIDGMT(SELLER_ID,GMT_MODIFIED);
+  ###     # Time: 110621 16:53:03
+  ###     # User@Host: root[root] @ localhost []
+  ###     # Query_time: 171.489260  Lock_time: 0.000504 Rows_sent: 0  Rows_examined: 0
+  ###     use tc15;
+  ###     SET timestamp=1308646383;
+  ###     alter table tablename add index ...(SELLER_ID,GMT_MODIFIED);
   my $sql_from = "";
   my $sql_to = "";
   my $user = "";
   my $host = "";
  
   ###     # Time: 110621 16:53:03
-# Time: 110614  5:10:00
+  # Time: 110614  5:10:00
+	# Time: 130116 16:15:36
   ## This code wont work again when the year 2100 come.
+
+	$curLineFlag = 'O';
   if($_ =~ m/^\# Time\: (\d{2})(\d{2})(\d{2})\s+(\d+\:\d+\:\d+)/){
-    # print "[+==+]$_ ".todatetime($doneTime)."\n" if $opt{d};
-    $doneTime = "20$1-$2-$3 $4";
-    $doneTime = tounixtime($doneTime);
-  }
- 
-  ###   # User@Host: tc[tc] @  [172.23.67.115]
-  ###   # User@Host: tc[tc] @  [172.24.168.108]
-  elsif($_ =~ m/^\# User\@Host\: (\w+)\[(\w*)\] \@\s+\[(\w|\.)+\]/){
-    if($inTime eq 1){
+		#
+		#  Here we try to output any chunk befor,if exist	
+		#
+		$curTimeInfo = $_;
+		if($uinTime or $sinTime)
+		{
       # Between the interval
       my $show_qt = sprintf("%11.6f",$query_time);
       my $show_st = sprintf("%21s",todatetime(($doneTime-$query_time)));
       my $show_dt = sprintf("%21s",todatetime($doneTime));
       my $show_re = sprintf("%8d",$row_examined);
-      print "# QueryTime:$show_qt Start:$show_st Done:$show_dt Rows examin:$show_re\n";
+      print "# Start:$show_st Done:$show_dt;QueryTime:$show_qt; Rows examin:$show_re\n";
+			print $preTimeInfo;
       print $chunk;
     }
-    $inTime = 0;
-    $chunk = "";
-    $chunk .= $_;
+		$sinTime = 0;
+		$uinTime = 0;
+	  $chunk = '';
+
+		$curLineFlag = 'T';
+    $doneTime = "20$1-$2-$3 $4";
+    $doneTime = tounixtime($doneTime);
+		if($doneTime >= $start and $doneTime <= $until)
+		{
+			$uinTime = 1;
+    }
+		elsif($doneTime - $until > 3600*20){
+			# if doneTime if far away until time, we quit
+			exit;
+		}
+		else{
+			$uinTime = 0;
+		}
+		if($debug){
+			print STDERR "  [d]".$_."";
+			print STDERR "  [d]".todatetime($doneTime)."\n";
+			print STDERR "  [d]".$uinTime."\n\n";
+		}
+  }
+ 
+  ###   # User@Host: tc[tc] @  [172.23.67.115]
+  ###   # User@Host: tc[tc] @  [172.24.168.108]
+  elsif($_ =~ m/^\# User\@Host\: (\w+)\[(\w*)\] \@\s+\[(\w|\.)+\]/){
+		#
+		#  Here we try to output any chunk befor,if exist	
+		#
+		if( $preLineFlag ne 'T' and ($sinTime or $uinTime))
+		{
+      # Between the interval
+      my $show_qt = sprintf("%11.6f",$query_time);
+      my $show_st = sprintf("%21s",todatetime(($doneTime-$query_time)));
+      my $show_dt = sprintf("%21s",todatetime($doneTime));
+      my $show_re = sprintf("%8d",$row_examined);
+      print "# Start:$show_st Done:$show_dt;QueryTime:$show_qt; Rows examin:$show_re\n";
+			print $preTimeInfo;
+      print $chunk;
+    }
+		$sinTime = 0;
+		#$uinTime = 0;
+		$chunk = '';
+
+		$curLineFlag = 'U';
     $user = $1;
     $host = $3;
   }
 ###  # Query_time: 1.384300  Lock_time: 0.000103 Rows_sent: 1  Rows_examined: 3764
 ###  use tc15;
 ###  SET timestamp=1309416998;
-###  select count(*) from tc_biz_order_0245 where  is_main = 1 and (biz_type=100 or biz_type=200 or biz_type=300 or biz_type=500) and pay_status=6 and seller_id=11202805 and status=0 and gmt_create>=date_format('2011-06-20 14:56:33','%Y-%m-%d %T') and gmt_create<=date_format('2011-06-30 15:56:33','%Y-%m-
-###  %d %T') and seller_rate_status = 5;
+###  select count(*) from tablename where  is_main = 1 and (type= or type= or type= or type=) and pay_status=6 and seller_id=and status=0 and gmt_create>=date_format('2011-06-20 14:56:33','%Y-%m-%d %T') and gmt_create<=date_format('2011-06-30 15:56:33','%Y-%m-
+###  %d %T');
 
   elsif($_ =~ m/^\#\sQuery_time\: (\d+\.\d+)\s+Lock_time\: (\d+\.\d+) Rows_sent: (\d+)\s+Rows_examined\: (\d+)/){
-    $chunk .= $_;
     $query_time = $1;
     $startTime = $doneTime - $query_time;
+		if($startTime >= $start and $startTime <= $until)
+		{
+			$sinTime = 1;
+    }
+		else{
+			$sinTime = 0;
+		}
     $lock_time = $2;
     $row_sent = $3;
     $row_examined = $4;
@@ -184,24 +330,18 @@ while (<SLOWLOG>) {
 
 ###  use tc15;
   elsif($_ =~ m/^use\s(\w+)/){
-    $chunk .= $_;
     $db = $1;
   }
 ###  SET timestamp=1309416998;
   elsif($_ =~ m/^SET timestamp=(\d+)/){
-    $chunk .= $_;
     $unixtime = $1;
   }
   else{
-    if( 
-       ( $inTime == 0 ) and
-       ($startTime >= tounixtime($start) and $startTime <= tounixtime($until)) or
-       ($doneTime <= tounixtime($until) and $doneTime >= tounixtime($start))
-      ){
-      print "inTime\n" if $opt{d};
-      $inTime = 1;
-    }
-    $chunk .= $_;
   }
+	if($curLineFlag ne 'T'){
+		 $chunk .= $_;
+	}
+	$preLineFlag = $curLineFlag;
+	$preTimeInfo = $curTimeInfo;
 }
 print STDERR "Done\n";
