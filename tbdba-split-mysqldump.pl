@@ -8,7 +8,7 @@
 #  How faster it is:
 #    $ls -lh backup.sql.gz 
 #     -rw-r--r-- 1 mysql dba 14G Nov 21 04:49 backup.sql.gz
-#    $date && gunzip -c backup.sql.gz|./tbdba-restore-mysqldump.pl -s monitor_general -t monitor_host_info && date
+#    $date && gunzip -c backup.sql.gz|./tbdba-split-mysqldump.pl -s monitor_general -t monitor_host_info && date
 #    Fri Nov 25 14:35:06 CST 2011
 #    Fri Nov 25 14:46:49 CST 2011
 #    (the unzip of backup.sql.gz is 88G)
@@ -21,7 +21,7 @@
 #      1. split/csplit the file
 #      2. restore some tables.
 #    This script will get a tiny improvement, all you need do is :
-#      tbdba-restore-mysqldump.pl -t process,user -s monitor -f backup.sql
+#      tbdba-split-mysqldump.pl -t process,user -s monitor -f backup.sql
 #
 #  Feature:
 #    1. When all the table has been found and -s is specified, exit immediately.
@@ -61,30 +61,30 @@ use Getopt::Long;
 sub print_usage () {
   my $text = <<EOF;
  NAME:
-    tbdba-restore-mysqldump.pl
+    tbdba-split-mysqldump.pl
 
  SYNTAX:
     Sample:
        1. Get table "process" from backup.sql
-          tbdba-restore-mysqldump.pl -t process -f backup.sql
+          tbdba-split-mysqldump.pl -t process -f backup.sql
        2. Get table "process" of database "monitor" from backup.sql
-          tbdba-restore-mysqldump.pl -t process -s monitor -f backup.sql
+          tbdba-split-mysqldump.pl -t process -s monitor -f backup.sql
        3. Get table "process","users" of database "monitor" from backup.sql
-          tbdba-restore-mysqldump.pl -t process,user -s monitor -f backup.sql
+          tbdba-split-mysqldump.pl -t process,user -s monitor -f backup.sql
        4. Get sql files of some tables from a STDIN 
-          gunzip -c backup.sql.gz|tbdba-restore-mysqldump.pl -t process,user -s monitor
+          gunzip -c backup.sql.gz|tbdba-split-mysqldump.pl -t process,user -s monitor
        5. Get all the tables's sql files in schema 'monitor'
-          gunzip -c backup.sql.gz|tbdba-restore-mysqldump.pl -s monitor --all-tables
+          gunzip -c backup.sql.gz|tbdba-split-mysqldump.pl -s monitor --all-tables
        6. Get all the table sql files in the dump file 
-          tbdba-restore-mysqldump.pl --all-tables -f backup.sql
+          tbdba-split-mysqldump.pl --all-tables -f backup.sql
           Get all the table sql files in *** DATABASE *** monitor 
-          tbdba-restore-mysqldump.pl -s monitor --all-tables -f backup.sql
+          tbdba-split-mysqldump.pl -s monitor --all-tables -f backup.sql
        7. With -d, more infomation of processing will be output
-          date && gunzip -c /backdir/backup.sql.gz|tbdba-restore-mysqldump.pl -d -a && date
+          date && gunzip -c /backdir/backup.sql.gz|tbdba-split-mysqldump.pl -d -a && date
        8. With -i, "use db" will be ignore,This can help you import table to a different database. 
-          tbdba-restore-mysqldump.pl -t process -s monitor -i
+          tbdba-split-mysqldump.pl -t process -s monitor -i
        9. Specify the output directory with -r|--target-dir
-          tbdba-restore-mysqldump.pl --target-dir /opt/restore/ -t process -s monitor
+          tbdba-split-mysqldump.pl --target-dir /opt/restore/ -t process -s monitor
           Here is "/opt/restore/". NOT "/opt/restore".
 
  FUNCTION:
